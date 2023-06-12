@@ -9,7 +9,7 @@ import "./SBT.sol";
 contract EntradasEventos is Ownable, ReentrancyGuard{
     using SafeMath for uint256;
 
-    SBT private sbt;
+    SBT public sbt;
 
     string public nameEvent;
 
@@ -17,6 +17,7 @@ contract EntradasEventos is Ownable, ReentrancyGuard{
     uint32 public ticketsAvailable; //How many tickets are available for sale
     uint16 public ticketPrice;
     uint64 public globalScore; //How has been sold
+    uint256 public totalEarned; //How much money has been earned
 
     mapping(address => mapping(uint256 =>SBT.Soul)) private soldTickets; //address => tickets SBT
     
@@ -58,8 +59,6 @@ contract EntradasEventos is Ownable, ReentrancyGuard{
         require(msg.sender == _buyer, "You can only buy tickets for yourself");
         require(allowedToBuyTicket[_buyer] != 0, "You have to pay the previous ticket first");
         require( ticketsAvailable != 0, "Not enough tickets available");
-        require(msg.value >= ticketPrice, "No se ha enviado suficiente ETH");
-        require(msg.value >= ticketPrice, "No se ha enviado suficiente ETH");
 
         sbt.mint(_buyer, SBT.Soul({
             id: nameEvent,
@@ -109,11 +108,37 @@ contract EntradasEventos is Ownable, ReentrancyGuard{
         
     }
 
+    function resellTicket(uint256 _score, address _buyer, address newOwner) internal onlyOwner{
+        ///@dev: Is checked that the ticket with that score exists?
+        require(soldTickets[_buyer][_score].owner == _buyer, "You are not the owner of this ticket");
+        require(soldTickets[_buyer][_score].available == false, "The ticket is not on resell mode");
+        require(newOwner != address(0), "You can't sell a ticket to address 0");
+
+        canceledTickets[_score] = soldTickets[_buyer][_score];
+        delete soldTickets[_buyer][_score];
+
+        sbt.burn(msg.sender); //burn se debería hacer solo por contratos autorizados
+
+        sbt.mint(newOwner, SBT.Soul({
+            id: nameEvent,
+            url: "",
+            score: _score, //Contador de entradas
+            timestamp: block.timestamp,
+            owner: newOwner,
+            available: false // If a ticket its put on resall mode, it will be available again
+        }));
+
+        emit ResellTicket(msg.sender, newOwner, _score);
+        
+    }
+
     ///@dev when user pays for a ticket, he can mint the tickets
-    function allowToBuyTickets(address _buyer, uint256 _quantity) external onlyOwner {
+    function allowToBuyTickets(address _buyer, uint256 _quantity) external payable onlyOwner {
         require(_quantity != 0, "Quantity must be greater than zero");
         require(ticketsAvailable >= _quantity, "Not enough tickets available");
+        require(msg.value == ticketPrice *_quantity, "No se ha enviado suficiente ETH");
 
+        totalEarned += msg.value;
         allowedToBuyTicket[_buyer] = _quantity;
     }
 
