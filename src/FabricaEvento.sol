@@ -10,7 +10,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {EntradasEventos} from "./EntradasEventos.sol";
 
-contract FactoryEntradas is UUPSUpgradeable, Ownable, Initializable {
+contract FabricaEvento is UUPSUpgradeable, Ownable, Initializable {
     address public entryImplementation; //TODO: OwnableUpgradeable
     address public proxyAdmin;
 
@@ -37,11 +37,11 @@ contract FactoryEntradas is UUPSUpgradeable, Ownable, Initializable {
         address _sbtAddress,
         string memory _nameEvent
     ) public onlyOwner {
-        EntradasEventos evento = new EntradasEventos(
+        Evento evento = new Evento(
             _maxTickets,
             _ticketPrice,
-            _sbtAddress,
-            _nameEvent
+            _nameEvent, 
+            _symbolEvent
         );
         emit EntradasEventosCreated(address(evento), msg.sender);
     }

@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "./SBT.sol";
 
-contract EntradasEventos is Ownable, ReentrancyGuard{
+contract Evento is Ownable, ReentrancyGuard{
     using SafeMath for uint256;
 
     SBT public sbt;
@@ -24,6 +24,7 @@ contract EntradasEventos is Ownable, ReentrancyGuard{
     mapping(uint256 => SBT.Soul) public canceledTickets; //Tickets that have been canceled
     mapping(address => uint256) private allowedToBuyTicket;
 
+    event PurchasedTicket();
     event SoldTicket(address indexed buyer, uint256 score);
     event ResellTicket(address indexed oldOwner, address indexed buyer, uint256 score);
     event CanceledTicket(address indexed buyer, uint256 score);
@@ -31,15 +32,15 @@ contract EntradasEventos is Ownable, ReentrancyGuard{
     constructor(
         uint32 _maxTickets,
         uint16 _ticketPrice,
-        address _sbtAddress,
-        string memory _nameEvent
+        string memory _nameEvent,
+        string memory _symbolEvent
     ){
         maxTickets = _maxTickets;
         ticketPrice = _ticketPrice;
         ticketsAvailable = _maxTickets;
         globalScore = 0;
         nameEvent = _nameEvent;        
-        sbt = SBT(_sbtAddress);
+        sbt = new SBT(_nameEvent, _symbolEvent);
     }
      
     function buyTickets(address buyer, uint256 quantity) public payable nonReentrant {
@@ -94,7 +95,7 @@ contract EntradasEventos is Ownable, ReentrancyGuard{
         }
     }
 
-    function _cancelTicket(uint256 _score, address _buyer) internal onlyOwner{
+    function _cancelTicket(uint256 _score, address _buyer) internal {
         ///@dev: Is checked that the ticket with that score exists?
         require(soldTickets[_buyer][_score].owner == _buyer, "You are not the owner of this ticket");
         require(soldTickets[_buyer][_score].available == false, "The ticket is not on resell mode");
@@ -103,13 +104,15 @@ contract EntradasEventos is Ownable, ReentrancyGuard{
         delete soldTickets[_buyer][_score];
 
         sbt.burn(msg.sender); //burn se debería hacer solo por contratos autorizados
-
+    
+        (bool sent, ) = payable(_buyer).call{value: ticketPrice}("");
+        require(sent, "Failed to send Ether");
+        
         emit CanceledTicket(msg.sender, _score);
         
     }
 
-    function resellTicket(uint256 _score, address _buyer, address newOwner) internal onlyOwner{
-        ///@dev: Is checked that the ticket with that score exists?
+    function resellTicket(uint256 _score, address _buyer, address newOwner) internal {
         require(soldTickets[_buyer][_score].owner == _buyer, "You are not the owner of this ticket");
         require(soldTickets[_buyer][_score].available == false, "The ticket is not on resell mode");
         require(newOwner != address(0), "You can't sell a ticket to address 0");
@@ -117,7 +120,7 @@ contract EntradasEventos is Ownable, ReentrancyGuard{
         canceledTickets[_score] = soldTickets[_buyer][_score];
         delete soldTickets[_buyer][_score];
 
-        sbt.burn(msg.sender); //burn se debería hacer solo por contratos autorizados
+        sbt.burn(msg.sender); 
 
         sbt.mint(newOwner, SBT.Soul({
             id: nameEvent,
@@ -133,13 +136,15 @@ contract EntradasEventos is Ownable, ReentrancyGuard{
     }
 
     ///@dev when user pays for a ticket, he can mint the tickets
-    function allowToBuyTickets(address _buyer, uint256 _quantity) external payable onlyOwner {
+    function allowToBuyTickets(address _buyer, uint256 _quantity) external payable {
         require(_quantity != 0, "Quantity must be greater than zero");
         require(ticketsAvailable >= _quantity, "Not enough tickets available");
         require(msg.value == ticketPrice *_quantity, "No se ha enviado suficiente ETH");
 
         totalEarned += msg.value;
         allowedToBuyTicket[_buyer] = _quantity;
+
+        emit PurchasedTicket();
     }
 
     ///@dev called by frontend to get the price of the ticket
@@ -153,5 +158,14 @@ contract EntradasEventos is Ownable, ReentrancyGuard{
         uint256 priceIncrement = (soldPercentage * (maxPrice - initialPrice)) / 100;
 
         return initialPrice + priceIncrement;
+    }
+
+    function modifiedSetMaxTickets(uint32 _maxTickets) external onlyOwner {
+        require(_maxTickets >  maxTickets, "You can't reduce the number of tickets");
+        maxTickets = _maxTickets;
+    }
+
+    function modifiedSetTicketPrice(uint16 _ticketPrice) external onlyOwner {
+        ticketPrice = _ticketPrice;
     }
 }
