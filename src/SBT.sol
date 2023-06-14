@@ -12,12 +12,12 @@ contract SBT {
         bool available;
     }
 
-    mapping (address => Soul) private souls;
-    mapping (address => mapping (address => Soul)) soulProfiles;
-    mapping (address => address[]) private profiles;
+    mapping (address => Soul) public souls;
+    mapping (address => mapping (address => Soul)) public soulProfiles;
+    mapping (address => address[]) public profiles;
 
     string public name;
-    string public ticker;
+    string public description;
     address public operator;
     bytes32 private zeroHash = 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470;
     
@@ -27,9 +27,9 @@ contract SBT {
     event SetProfile(address _profiler, address _soul);
     event RemoveProfile(address _profiler, address _soul);
 
-    constructor(string memory _name, string memory _ticker) {
+    constructor(string memory _name, string memory _description) {
         name = _name;
-        ticker = _ticker;
+        description = _description;
         operator = msg.sender;
     }
 
